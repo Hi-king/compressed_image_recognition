@@ -17,5 +17,5 @@ class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
         with io.BytesIO() as f:
             image = Image.fromarray((data * 256).astype(numpy.uint8))
             image.save(fp=f, format='JPEG')
-            d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8)
+            d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8).astype(numpy.int32)
             return d, label
