@@ -15,6 +15,7 @@ class Model(chainer.Chain):
         """
         :param x: [batch, bytes]
         """
+        self.reset_state()
         outputs = []
         for each_data in chainer.functions.separate(x):
             for byte in chainer.functions.separate(each_data):

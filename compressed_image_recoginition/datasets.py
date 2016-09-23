@@ -4,6 +4,7 @@ import io
 import numpy
 from PIL import Image
 
+
 class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
     def __init__(self, base_dataset: dataset_mixin.DatasetMixin):
         self._base = base_dataset
@@ -19,3 +20,15 @@ class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
             image.save(fp=f, format='JPEG')
             d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8).astype(numpy.int32)
             return d, label
+
+
+class HeadDataset(dataset_mixin.DatasetMixin):
+    def __init__(self, head: int, base_dataset: dataset_mixin.DatasetMixin):
+        self._base = base_dataset
+        self._head = head
+
+    def __len__(self):
+        return min(len(self._base), self._head)
+
+    def get_example(self, i):
+        return self._base[i]
