@@ -3,17 +3,20 @@ import chainer
 import argparse
 import os
 import time
+import json
 from chainer.training import extensions
 
 ROOT_PATH = os.path.dirname(__file__)
 import compressed_image_recoginition
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--format", type=str, default='JPEG')
 parser.add_argument("--gpu", type=int, default=-1)
 args = parser.parse_args()
 
 train_mnist_dataset, test_mnist_dataset = chainer.datasets.get_mnist(withlabel=True, ndim=2)
-dataset = compressed_image_recoginition.datasets.MnistCompressedBinaryDataset(base_dataset=train_mnist_dataset)
+dataset = compressed_image_recoginition.datasets.MnistCompressedBinaryDataset(base_dataset=train_mnist_dataset,
+                                                                              image_format=args.format)
 # iterator = chainer.iterators.SerialIterator(dataset=dataset, batch_size=1)
 iterator = chainer.iterators.MultiprocessIterator(dataset=dataset, batch_size=1)
 
@@ -47,7 +50,18 @@ if args.gpu >= 0:
 optimizer.setup(model)
 
 updater = chainer.training.StandardUpdater(iterator, optimizer, device=args.gpu, loss_func=loss)
-trainer = chainer.training.Trainer(updater, (10, 'epoch'), out=os.path.join(ROOT_PATH, "output", str(int(time.time()))))
+trainer = chainer.training.Trainer(updater, (10, 'epoch'),
+                                   out=os.path.join(
+                                       ROOT_PATH, "output",
+                                       "{format}_{time}".format(format=args.format, time=int(time.time()))))
+
+
+def save_json(filename, obj):
+    json.dump(obj, open(filename, 'w'), sort_keys=True, indent=4)
+
+
+trainer.extend(extensions.snapshot_object(args.__dict__, 'argument.json', savefun=save_json),
+               invoke_before_training=True)
 
 save_interval = (1000, 'iteration')
 trainer.extend(extensions.snapshot_object(model, '{.updater.iteration}.model'), trigger=save_interval)

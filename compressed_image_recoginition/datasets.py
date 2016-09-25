@@ -6,8 +6,9 @@ from PIL import Image
 
 
 class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
-    def __init__(self, base_dataset: dataset_mixin.DatasetMixin):
+    def __init__(self, base_dataset: dataset_mixin.DatasetMixin, image_format: str = 'JPEG'):
         self._base = base_dataset
+        self._format = image_format
 
     def __len__(self):
         return len(self._base)
@@ -17,7 +18,7 @@ class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
 
         with io.BytesIO() as f:
             image = Image.fromarray((data * 256).astype(numpy.uint8))
-            image.save(fp=f, format='JPEG')
+            image.save(fp=f, format=self._format)
             d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8).astype(numpy.int32)
             return d, label
 
