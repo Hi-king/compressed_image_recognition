@@ -18,7 +18,7 @@ train_mnist_dataset, test_mnist_dataset = chainer.datasets.get_mnist(withlabel=T
 dataset = compressed_image_recoginition.datasets.MnistCompressedBinaryDataset(base_dataset=train_mnist_dataset,
                                                                               image_format=args.format)
 # iterator = chainer.iterators.SerialIterator(dataset=dataset, batch_size=1)
-iterator = chainer.iterators.MultiprocessIterator(dataset=dataset, batch_size=1)
+iterator = chainer.iterators.MultiprocessIterator(dataset=dataset, batch_size=1, shuffle=True)
 
 test_dataset = compressed_image_recoginition.datasets.HeadDataset(
     head=50,
