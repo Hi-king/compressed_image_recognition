@@ -3,12 +3,13 @@ import chainer
 
 
 class Model(chainer.Chain):
-    def __init__(self, vocab_size, midsize, output_dimention):
+    def __init__(self, vocab_size, midsize, output_dimention, num_lstm_layer):
+        self.lstm_layer_keys = ["rnn{}".format(i) for i in range(num_lstm_layer)]
+        self.lstm_layers = {key: chainer.links.LSTM(midsize, midsize) for key in self.lstm_layer_keys}
         super().__init__(
-            word_embed=chainer.functions.EmbedID(vocab_size, midsize),
-            lstm0=chainer.links.lstm.LSTM(midsize, midsize),
-            lstm1=chainer.links.lstm.LSTM(midsize, midsize),
-            out_layer=chainer.functions.Linear(midsize, output_dimention)
+            word_embed=chainer.links.EmbedID(vocab_size, midsize),
+            out_layer=chainer.links.Linear(midsize, output_dimention),
+            **self.lstm_layers
         )
 
     def __call__(self, x: chainer.Variable) -> chainer.Variable:
@@ -27,18 +28,10 @@ class Model(chainer.Chain):
 
     def _forward_lstms(self, x):
         h = self.word_embed(x)
-        if hasattr(self, "lstm0"):
-            h = self.lstm0(h)
-        if hasattr(self, "lstm1"):
-            h = self.lstm1(h)
-        if hasattr(self, "lstm2"):
-            h = self.lstm2(h)
+        for key in self.lstm_layer_keys:
+            h = getattr(self, key)(h)
         return h
 
     def reset_state(self):
-        if hasattr(self, "lstm0"):
-            self.lstm0.reset_state()
-        if hasattr(self, "lstm1"):
-            self.lstm1.reset_state()
-        if hasattr(self, "lstm2"):
-            self.lstm2.reset_state()
+        for key in self.lstm_layer_keys:
+            getattr(self, key).reset_state()
