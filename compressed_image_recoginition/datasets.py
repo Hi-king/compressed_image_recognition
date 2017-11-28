@@ -21,7 +21,7 @@ class PaddedDataset(dataset_mixin.DatasetMixin):
     def get_example(self, i) -> (numpy.ndarray, int):
         base, label = self.base_dataet[i]
         data = numpy.ones((self.max_length,), dtype=base.dtype)
-        data[:base.shape[0]] = base
+        data[:min(base.shape[0], data.shape[0])] = base[:min(base.shape[0], data.shape[0])]
         return data, label
 
 

@@ -24,14 +24,6 @@ class LSTMModel(chainer.Chain):
         out = self.out_layer(lstm_out)
         return out
 
-        # for each_data in chainer.functions.separate(x):
-        #     for byte in chainer.functions.separate(each_data):
-        #         byte = chainer.functions.expand_dims(byte, axis=0)
-        #         lstm_out = self._forward_lstms(byte)
-        #     last_output = self.out_layer(lstm_out)
-        #     outputs.append(last_output)
-        # return chainer.functions.concat(outputs)
-
     def _forward_lstms(self, x):
         # h = self.word_embed(x)
         h = x
@@ -62,17 +54,15 @@ class ConvBNBlock(chainer.Chain):
 
 
 class ConvLSTM(LSTMModel):
-    def __init__(self, vocab_size, midsize, output_dimention, num_lstm_layer, bn):
+    def __init__(self, vocab_size, midsize, output_dimention, num_lstm_layer, bn, num_cnn_layer):
         super().__init__(vocab_size, midsize, output_dimention, num_lstm_layer)
         with self.init_scope():
             self.convolutions = chainer.ChainList(
-                ConvBNBlock(midsize, bn=bn),
-                ConvBNBlock(midsize, bn=bn),
+                *([ConvBNBlock(midsize, bn=bn)] * num_cnn_layer)
             )
 
     def __call__(self, x: chainer.Variable) -> chainer.Variable:
         self.reset_state()
-        outputs = []
         h = self.word_embed(x)
         h = chainer.functions.swapaxes(h, 1, 2)
         for block in self.convolutions:
@@ -83,12 +73,3 @@ class ConvLSTM(LSTMModel):
             lstm_out = self._forward_lstms(byte)
         out = self.out_layer(lstm_out)
         return out
-
-
-        # for each_data in chainer.functions.separate(h):
-        #     for byte in chainer.functions.separate(each_data):
-        #         byte = chainer.functions.expand_dims(byte, axis=0)
-        #         lstm_out = self._forward_lstms(byte)
-        #     last_output = self.out_layer(lstm_out)
-        #     outputs.append(last_output)
-        # return chainer.functions.concat(outputs)

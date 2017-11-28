@@ -4,6 +4,8 @@ import argparse
 import os
 import time
 import json
+import random
+import numpy
 from chainer.training import extensions
 
 ROOT_PATH = os.path.dirname(__file__)
@@ -20,19 +22,52 @@ parser.add_argument("--gpu", type=int, default=-1)
 parser.add_argument("--units", type=int, default=100)
 parser.add_argument("--model", default="lstm")
 parser.add_argument("--lstm_layers", type=int, default=2)
-parser.add_argument("--batch", type=int, default=32)
+parser.add_argument("--cnn_layers", type=int, default=2)
+parser.add_argument("--batch", type=int, default=1000)
+parser.add_argument("--noise_ratio", type=float, default=0.2)
 parser.add_argument("--bn", action="store_true")
+parser.add_argument("--augment", action="store_true")
 args = parser.parse_args()
 
 output_directory = os.path.join(
     ROOT_PATH,
     "output",
-    "{format}_{model}_unit{unit}_layer{layer}_batch{batch}{bn}_{time}".format(
+    "{format}_{model}_unit{unit}_layer{layer}{cnnlayer}_batch{batch}{bn}{augment}_{time}".format(
         model=args.model, format=args.format, unit=args.units, batch=args.batch, time=int(time.time()),
-        bn=("_bn" if args.bn else ""), layer=args.lstm_layers))
+        cnnlayer=("_{}".format(args.cnn_layers) if args.model == "convlstm" else ""),
+        bn=("_bn" if args.bn else ""), augment=("_aug" if args.augment else ""), layer=args.lstm_layers))
 os.makedirs(output_directory)
 
+
+def augmenation(datum):
+    image, label = datum
+    random_shift = (
+        random.choice(list(range(-3, 4, 1))),
+        random.choice(list(range(-3, 4, 1)))
+    )
+    shifted = numpy.zeros(image.shape, dtype=image.dtype)
+    top = max(0, random_shift[0])
+    bottom = min(image.shape[0], image.shape[0] + random_shift[0])
+    left = max(0, random_shift[1])
+    right = min(image.shape[1], image.shape[1] + random_shift[1])
+
+    target_top = max(0, -random_shift[0])
+    target_bottom = min(image.shape[0], image.shape[0] - random_shift[0])
+    target_left = max(0, -random_shift[1])
+    target_right = min(image.shape[1], image.shape[1] - random_shift[1])
+
+    shifted[target_top:target_bottom, target_left:target_right] = image[top:bottom, left:right]
+
+
+    rand_source = numpy.random.random(shifted.shape)
+    shifted[rand_source < args.noise_ratio] = shifted.max()
+
+    return shifted, label
+
 train_mnist_dataset, test_mnist_dataset = chainer.datasets.get_mnist(withlabel=True, ndim=2)
+if args.augment:
+    train_mnist_dataset = chainer.datasets.TransformDataset(train_mnist_dataset, augmenation)
+
 dataset = compressed_image_recoginition.datasets.MnistCompressedBinaryDataset(base_dataset=train_mnist_dataset,
                                                                               image_format=args.format)
 dataset = compressed_image_recoginition.datasets.PaddedDataset(dataset)
@@ -71,7 +106,8 @@ if args.model == "lstm":
                                                            num_lstm_layer=args.lstm_layers)
 elif args.model == "convlstm":
     model = compressed_image_recoginition.models.ConvLSTM(vocab_size=256, midsize=args.units, output_dimention=10,
-                                                          num_lstm_layer=args.lstm_layers, bn=args.bn)
+                                                          num_lstm_layer=args.lstm_layers, bn=args.bn,
+                                                          num_cnn_layer=args.cnn_layers)
 else:
     raise Exception()
 if args.gpu >= 0:
@@ -91,7 +127,8 @@ trainer.extend(extensions.snapshot_object(model, '{.updater.iteration}.model'), 
 trainer.extend(extensions.LogReport(trigger=(10, 'iteration'), log_name="log.txt"))
 trainer.extend(
     chainer.training.extensions.PrintReport(
-        ['epoch', 'iteration', "validation/main/accuracy", 'main/loss', "validation/main/loss", "elapsed_time"]),
+        ['epoch', 'iteration', "main/accuracy", 'main/loss', "validation/main/accuracy", "validation/main/loss",
+         "elapsed_time"]),
     trigger=evaluation_interval)
 
 trainer.extend(extensions.ProgressBar(update_interval=1))
