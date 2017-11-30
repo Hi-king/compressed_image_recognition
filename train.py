@@ -19,22 +19,19 @@ def save_json(filename, obj):
 parser = argparse.ArgumentParser()
 parser.add_argument("--format", type=str, default='JPEG')
 parser.add_argument("--gpu", type=int, default=-1)
-parser.add_argument("--units", type=int, default=100)
-parser.add_argument("--model", default="lstm")
-parser.add_argument("--lstm_layers", type=int, default=2)
-parser.add_argument("--cnn_layers", type=int, default=2)
 parser.add_argument("--batch", type=int, default=1000)
-parser.add_argument("--noise_ratio", type=float, default=0.2)
-parser.add_argument("--bn", action="store_true")
+parser.add_argument("--noise_ratio", type=float, default=0.0)
 parser.add_argument("--augment", action="store_true")
+compressed_image_recoginition.models.model_args_parser(parser)
 args = parser.parse_args()
 
 output_directory = os.path.join(
     ROOT_PATH,
     "output",
-    "{format}_{model}_unit{unit}_layer{layer}{cnnlayer}_batch{batch}{bn}{augment}_{time}".format(
+    "{format}_{model}_unit{unit}_layer{layer}{cnnlayer}_batch{batch}{bn}{augment}{noise}_{time}".format(
         model=args.model, format=args.format, unit=args.units, batch=args.batch, time=int(time.time()),
         cnnlayer=("_{}".format(args.cnn_layers) if args.model == "convlstm" else ""),
+        noise=("_noise{}".format(args.noise_ratio) if args.noise_ratio >0 else ""),
         bn=("_bn" if args.bn else ""), augment=("_aug" if args.augment else ""), layer=args.lstm_layers))
 os.makedirs(output_directory)
 
@@ -77,7 +74,7 @@ test_dataset = compressed_image_recoginition.datasets.HeadDataset(
     head=50,
     base_dataset=compressed_image_recoginition.datasets.MnistCompressedBinaryDataset(base_dataset=test_mnist_dataset)
 )
-test_dataset = compressed_image_recoginition.datasets.PaddedDataset(test_dataset)
+test_dataset = compressed_image_recoginition.datasets.PaddedDataset(test_dataset, max_length=dataset.max_length)
 
 test_iterator = chainer.iterators.SerialIterator(dataset=test_dataset, batch_size=args.batch, repeat=False)
 
@@ -101,15 +98,8 @@ def evaluation(binary, label):
 
 optimizer = chainer.optimizers.Adam()
 
-if args.model == "lstm":
-    model = compressed_image_recoginition.models.LSTMModel(vocab_size=256, midsize=args.units, output_dimention=10,
-                                                           num_lstm_layer=args.lstm_layers)
-elif args.model == "convlstm":
-    model = compressed_image_recoginition.models.ConvLSTM(vocab_size=256, midsize=args.units, output_dimention=10,
-                                                          num_lstm_layer=args.lstm_layers, bn=args.bn,
-                                                          num_cnn_layer=args.cnn_layers)
-else:
-    raise Exception()
+
+model = compressed_image_recoginition.models.load_model(args)
 if args.gpu >= 0:
     chainer.cuda.get_device(args.gpu).use()  # Make the GPU current
     model.to_gpu()

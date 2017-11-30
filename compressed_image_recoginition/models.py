@@ -1,5 +1,30 @@
 # -*- coding: utf-8 -*-
+import typing
+
 import chainer
+import argparse
+import compressed_image_recoginition
+
+
+def model_args_parser(parser: argparse.ArgumentParser):
+    parser.add_argument("--units", type=int, default=100)
+    parser.add_argument("--model", default="lstm")
+    parser.add_argument("--lstm_layers", type=int, default=2)
+    parser.add_argument("--cnn_layers", type=int, default=2)
+    parser.add_argument("--bn", action="store_true")
+
+
+def load_model(args: argparse.Namespace):
+    if args.model == "lstm":
+        model = compressed_image_recoginition.models.LSTMModel(vocab_size=256, midsize=args.units, output_dimention=10,
+                                                               num_lstm_layer=args.lstm_layers)
+    elif args.model == "convlstm":
+        model = compressed_image_recoginition.models.ConvLSTM(vocab_size=256, midsize=args.units, output_dimention=10,
+                                                              num_lstm_layer=args.lstm_layers, bn=args.bn,
+                                                              num_cnn_layer=args.cnn_layers)
+    else:
+        raise Exception()
+    return model
 
 
 class LSTMModel(chainer.Chain):
@@ -25,7 +50,6 @@ class LSTMModel(chainer.Chain):
         return out
 
     def _forward_lstms(self, x):
-        # h = self.word_embed(x)
         h = x
         for key in self.lstm_layer_keys:
             h = getattr(self, key)(h)
@@ -62,6 +86,19 @@ class ConvLSTM(LSTMModel):
             )
 
     def __call__(self, x: chainer.Variable) -> chainer.Variable:
+        self.reset_state()
+        h = self.word_embed(x)
+        h = chainer.functions.swapaxes(h, 1, 2)
+        for block in self.convolutions:
+            h = block(h)
+        h = chainer.functions.swapaxes(h, 1, 2)
+
+        for byte in chainer.functions.separate(h, axis=1):
+            lstm_out = self._forward_lstms(byte)
+        out = self.out_layer(lstm_out)
+        return out
+
+    def predict_all_steps(self, x: chainer.Variable) -> typing.List[chainer.Variable]:
         self.reset_state()
         h = self.word_embed(x)
         h = chainer.functions.swapaxes(h, 1, 2)

@@ -7,9 +7,9 @@ from PIL import Image
 
 
 class PaddedDataset(dataset_mixin.DatasetMixin):
-    def __init__(self, base_dataset: dataset_mixin.DatasetMixin):
+    def __init__(self, base_dataset: dataset_mixin.DatasetMixin, max_length=None):
         self.base_dataet = base_dataset
-        self.max_length = self.find_max(base_dataset)
+        self.max_length = self.find_max(base_dataset) if max_length is None else max_length
         self.padvalue = -1
 
     def find_max(self, base_dataset: dataset_mixin.DatasetMixin):
@@ -26,6 +26,25 @@ class PaddedDataset(dataset_mixin.DatasetMixin):
 
 
 class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
+    @classmethod
+    def convert(cls, base_image, format):
+        with io.BytesIO() as f:
+            image_array = (base_image * 256).astype(numpy.uint8)
+            if format == "npy":
+                f.write(image_array.binary_repr())
+                image_array.tofile(f)
+            else:
+                image = Image.fromarray(image_array)
+                image.save(fp=f, format=format)
+            d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8).astype(numpy.int32)
+            return d
+
+    @classmethod
+    def save_formatted(cls, datum, path):
+        binary_data = datum.astype(numpy.uint8).tobytes()
+        with open(path, "wb+") as f:
+            f.write(binary_data)
+
     def __init__(self, base_dataset: dataset_mixin.DatasetMixin, image_format: str = 'JPEG'):
         self._base = base_dataset
         self._format = image_format
@@ -35,17 +54,7 @@ class MnistCompressedBinaryDataset(dataset_mixin.DatasetMixin):
 
     def get_example(self, i) -> (numpy.ndarray, int):
         data, label = self._base[i]
-
-        with io.BytesIO() as f:
-            image_array = (data * 256).astype(numpy.uint8)
-            if self._format == "npy":
-                f.write(image_array.binary_repr())
-                image_array.tofile(f)
-            else:
-                image = Image.fromarray(image_array)
-                image.save(fp=f, format=self._format)
-            d = numpy.frombuffer(f.getvalue(), dtype=numpy.uint8).astype(numpy.int32)
-            return d, label
+        return self.convert(data, self._format), label
 
 
 class HeadDataset(dataset_mixin.DatasetMixin):
