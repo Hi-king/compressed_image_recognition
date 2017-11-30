@@ -98,7 +98,7 @@ class ConvLSTM(LSTMModel):
         out = self.out_layer(lstm_out)
         return out
 
-    def predict_all_steps(self, x: chainer.Variable) -> typing.List[chainer.Variable]:
+    def predict_all_steps(self, x: chainer.Variable) -> chainer.Variable:
         self.reset_state()
         h = self.word_embed(x)
         h = chainer.functions.swapaxes(h, 1, 2)
@@ -106,7 +106,8 @@ class ConvLSTM(LSTMModel):
             h = block(h)
         h = chainer.functions.swapaxes(h, 1, 2)
 
+        out = []
         for byte in chainer.functions.separate(h, axis=1):
             lstm_out = self._forward_lstms(byte)
-        out = self.out_layer(lstm_out)
-        return out
+            out.append(self.out_layer(lstm_out))
+        return chainer.functions.concat(out, axis=0)
